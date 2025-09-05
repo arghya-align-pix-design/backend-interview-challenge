@@ -19,7 +19,9 @@ app.use(express.json());
 const db = new Database(process.env.DATABASE_URL || './data/tasks.sqlite3');
 
 // Routes
+//Requests related paths diverted to the /api/tasks
 app.use('/api/tasks', createTaskRouter(db));
+//Requests related to the synchronisation
 app.use('/api', createSyncRouter(db));
 
 // Error handling

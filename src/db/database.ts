@@ -1,6 +1,7 @@
 import sqlite3 from 'sqlite3';
 import { promisify } from 'util';
 import { Task, SyncQueueItem } from '../types';
+import { randomUUID } from 'crypto';
 
 const sqlite = sqlite3.verbose();
 
@@ -83,5 +84,45 @@ export class Database {
         else resolve();
       });
     });
+  }
+
+  /** Get all items in sync queue */
+  async getAllSyncQueueItems(): Promise<SyncQueueItem[]> {
+    const rows = await this.all(`SELECT * FROM sync_queue ORDER BY created_at ASC`);
+    return rows.map(row => ({
+      ...row,
+      created_at: new Date(row.created_at),
+      data: JSON.parse(row.data) // parse JSON back to object
+    }));
+  }
+
+  /** Insert a new sync queue item */
+  async insertSyncQueueItem(item: SyncQueueItem): Promise<void> {
+    await this.run(
+      `INSERT INTO sync_queue (id, task_id, operation, data, created_at, retry_count, error_message)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [
+        item.id || randomUUID(),
+        item.task_id,
+        item.operation,
+        JSON.stringify(item.data),
+        item.created_at.toISOString(),
+        item.retry_count,
+        item.error_message || null
+      ]
+    );
+  }
+
+  /** Remove a sync queue item by task ID */
+  async removeFromSyncQueue(taskId: string): Promise<void> {
+    await this.run(`DELETE FROM sync_queue WHERE task_id = ?`, [taskId]);
+  }
+
+   /** Update an existing sync queue item (for retries) */
+  async updateSyncQueueItem(item: SyncQueueItem): Promise<void> {
+    await this.run(
+      `UPDATE sync_queue SET retry_count = ?, error_message = ? WHERE id = ?`,
+      [item.retry_count, item.error_message || null, item.id]
+    );
   }
 }
